@@ -4,6 +4,7 @@ import { useCart } from '../../context/CartContext';
 import CartItem from './CartItem';
 import Button from '../ui/Button';
 import CheckoutModal from './CheckoutModal';
+import CustomerSelectModal from './CustomerSelectModal';
 import { formatCurrency } from '../../utils/formatters';
 
 export default function CartPanel() {
@@ -12,6 +13,7 @@ export default function CartPanel() {
     customer, setCustomer 
   } = useCart();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-full bg-dark-900 border-l border-dark-700 w-96 flex-shrink-0">
@@ -30,9 +32,12 @@ export default function CartPanel() {
         </button>
       </div>
 
-      {/* Customer Selection (Placeholder for full feature) */}
+      {/* Customer Selection */}
       <div className="p-3 border-b border-dark-700 bg-dark-800">
-        <button className="w-full flex items-center justify-between text-sm text-dark-300 hover:text-white bg-dark-700 hover:bg-dark-600 px-3 py-2 rounded-lg transition-colors border border-dark-600 border-dashed">
+        <button 
+          onClick={() => setIsCustomerModalOpen(true)}
+          className="w-full flex items-center justify-between text-sm text-dark-300 hover:text-white bg-dark-700 hover:bg-dark-600 px-3 py-2 rounded-lg transition-colors border border-dark-600 border-dashed"
+        >
           <div className="flex items-center gap-2">
             <User size={16} />
             {customer ? customer.name : 'Select Customer (Optional)'}
@@ -94,6 +99,10 @@ export default function CartPanel() {
       <CheckoutModal 
         isOpen={isCheckoutOpen} 
         onClose={() => setIsCheckoutOpen(false)} 
+      />
+      <CustomerSelectModal 
+        isOpen={isCustomerModalOpen} 
+        onClose={() => setIsCustomerModalOpen(false)} 
       />
     </div>
   );

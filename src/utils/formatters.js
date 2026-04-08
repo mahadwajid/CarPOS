@@ -1,5 +1,5 @@
-export const formatCurrency = (amount, currency = 'USD', symbol = '$') => {
-  return `${symbol}${Number(amount).toFixed(2)}`;
+export const formatCurrency = (amount, currency = 'PKR', symbol = 'Rs ') => {
+  return `${symbol}${Number(amount).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 export const formatDate = (dateString, showTime = false) => {
