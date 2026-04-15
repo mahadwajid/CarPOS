@@ -137,6 +137,56 @@ function createSchema() {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    -- Expense Categories
+    CREATE TABLE IF NOT EXISTS expense_categories (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL UNIQUE,
+      icon       TEXT    DEFAULT 'receipt',
+      color      TEXT    DEFAULT '#6366f1',
+      created_at TEXT    DEFAULT (datetime('now'))
+    );
+
+    -- Expenses
+    CREATE TABLE IF NOT EXISTS expenses (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      expense_category_id INTEGER REFERENCES expense_categories(id) ON DELETE SET NULL,
+      title               TEXT    NOT NULL,
+      amount              REAL    NOT NULL DEFAULT 0,
+      description         TEXT,
+      payment_method      TEXT    DEFAULT 'cash',
+      reference           TEXT,
+      is_recurring        INTEGER DEFAULT 0,
+      recurring_period    TEXT,
+      user_id             INTEGER,
+      expense_date        TEXT    NOT NULL DEFAULT (date('now')),
+      created_at          TEXT    DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_expenses_date     ON expenses(expense_date);
+    CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(expense_category_id);
+
+    -- Borrowed Sales (consignment / commission sales)
+    CREATE TABLE IF NOT EXISTS borrowed_sales (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      supplier_name   TEXT    NOT NULL,
+      supplier_phone  TEXT,
+      product_name    TEXT    NOT NULL,
+      product_desc    TEXT,
+      cost_price      REAL    NOT NULL DEFAULT 0,
+      sell_price      REAL    NOT NULL DEFAULT 0,
+      profit          REAL    NOT NULL DEFAULT 0,
+      quantity        INTEGER NOT NULL DEFAULT 1,
+      buyer_name      TEXT,
+      payment_method  TEXT    DEFAULT 'cash',
+      status          TEXT    DEFAULT 'unsettled',  -- 'settled' | 'unsettled'
+      notes           TEXT,
+      sale_date       TEXT    NOT NULL DEFAULT (date('now')),
+      settled_date    TEXT,
+      user_id         INTEGER,
+      created_at      TEXT    DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_borrowed_sales_date   ON borrowed_sales(sale_date);
+    CREATE INDEX IF NOT EXISTS idx_borrowed_sales_status ON borrowed_sales(status);
   `)
 }
 
@@ -173,6 +223,20 @@ function seedDefaults() {
 
   // Default category
   db.prepare(`INSERT OR IGNORE INTO categories (name) VALUES (?)`).run('General')
+
+  // Default expense categories
+  const expenseCategories = [
+    ['Rent',        'home',        '#ef4444'],
+    ['Utilities',   'zap',         '#f59e0b'],
+    ['Salaries',    'users',       '#3b82f6'],
+    ['Transport',   'truck',       '#8b5cf6'],
+    ['Maintenance', 'wrench',      '#ec4899'],
+    ['Marketing',   'megaphone',   '#14b8a6'],
+    ['Supplies',    'shopping-bag', '#f97316'],
+    ['Other',       'receipt',     '#6b7280'],
+  ]
+  const insertExpCat = db.prepare(`INSERT OR IGNORE INTO expense_categories (name, icon, color) VALUES (?, ?, ?)`)
+  for (const [name, icon, color] of expenseCategories) insertExpCat.run(name, icon, color)
 }
 
 module.exports = { initDatabase, getDb }

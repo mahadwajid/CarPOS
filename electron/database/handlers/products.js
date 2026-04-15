@@ -1,11 +1,13 @@
 const { getDb } = require('../db')
 
-function getAll() {
+function getAll({ includeInactive = false } = {}) {
   const db = getDb()
+  const where = includeInactive ? '' : 'WHERE p.is_active = 1'
   const rows = db.prepare(`
     SELECT p.*, c.name as category_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
+    ${where}
     ORDER BY p.name
   `).all()
   return { success: true, data: rows }
@@ -113,9 +115,19 @@ function update({ id, name, barcode, price, cost, stock, low_stock_threshold, ca
 
 function remove(id) {
   const db = getDb()
-  // Soft delete
-  db.prepare(`UPDATE products SET is_active = 0, updated_at = datetime('now') WHERE id = ?`).run(id)
-  return { success: true }
+  
+  // Check if product has sales history
+  const hasSales = db.prepare(`SELECT id FROM sale_items WHERE product_id = ? LIMIT 1`).get(id)
+  
+  if (hasSales) {
+    // Soft delete if sales exist
+    db.prepare(`UPDATE products SET is_active = 0, updated_at = datetime('now') WHERE id = ?`).run(id)
+    return { success: true, message: 'Product hidden (kept in history due to previous sales)' }
+  } else {
+    // Hard delete if no sales history
+    db.prepare(`DELETE FROM products WHERE id = ?`).run(id)
+    return { success: true, message: 'Product permanently deleted' }
+  }
 }
 
 function getCategories() {

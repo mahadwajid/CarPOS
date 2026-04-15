@@ -11,6 +11,8 @@ const inventoryHandlers    = require('./database/handlers/inventory')
 const reportHandlers       = require('./database/handlers/reports')
 const settingsHandlers     = require('./database/handlers/settings')
 const authHandlers         = require('./database/handlers/auth')
+const expenseHandlers      = require('./database/handlers/expenses')
+const borrowedSalesHandlers = require('./database/handlers/borrowed_sales')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -31,7 +33,7 @@ function createWindow() {
       nodeIntegration: false,
       webSecurity: true,
     },
-    icon: path.join(__dirname, '../public/icon.png'),
+    icon: path.join(__dirname, '../build/icon.png'),
     show: false,
   })
 
@@ -89,7 +91,7 @@ function registerIpcHandlers() {
   ipcMain.handle('auth:changePassword', (_, data) => authHandlers.changePassword(data))
 
   // Products
-  ipcMain.handle('products:getAll',    ()         => productHandlers.getAll())
+  ipcMain.handle('products:getAll',    (_, params) => productHandlers.getAll(params))
   ipcMain.handle('products:getById',   (_, id)    => productHandlers.getById(id))
   ipcMain.handle('products:create',    (_, data)  => productHandlers.create(data))
   ipcMain.handle('products:update',    (_, data)  => productHandlers.update(data))
@@ -108,6 +110,7 @@ function registerIpcHandlers() {
   ipcMain.handle('sales:delete',     (_, id)    => salesHandlers.remove(id))
   ipcMain.handle('sales:getDaily',   (_, date)  => salesHandlers.getDaily(date))
   ipcMain.handle('sales:getMonthly', (_, month) => salesHandlers.getMonthly(month))
+  ipcMain.handle('sales:exchange',   (_, data)  => salesHandlers.processExchange(data))
 
   // Customers
   ipcMain.handle('customers:getAll',    ()        => customerHandlers.getAll())
@@ -131,6 +134,26 @@ function registerIpcHandlers() {
   ipcMain.handle('reports:revenue',       (_, params) => reportHandlers.getRevenue(params))
   ipcMain.handle('reports:categoryBreakdown', ()     => reportHandlers.getCategoryBreakdown())
   ipcMain.handle('reports:customerReport', ()        => reportHandlers.getCustomerReport())
+
+  // Expenses
+  ipcMain.handle('expenses:getAll',         (_, params) => expenseHandlers.getAll(params))
+  ipcMain.handle('expenses:getById',        (_, id)     => expenseHandlers.getById(id))
+  ipcMain.handle('expenses:create',         (_, data)   => expenseHandlers.create(data))
+  ipcMain.handle('expenses:update',         (_, data)   => expenseHandlers.update(data))
+  ipcMain.handle('expenses:delete',         (_, id)     => expenseHandlers.remove(id))
+  ipcMain.handle('expenses:getCategories',  ()          => expenseHandlers.getCategories())
+  ipcMain.handle('expenses:createCategory', (_, data)   => expenseHandlers.createCategory(data))
+  ipcMain.handle('expenses:getSummary',     (_, params) => expenseHandlers.getSummary(params))
+  ipcMain.handle('expenses:getMonthlyTrend',(_, year)   => expenseHandlers.getMonthlyTrend(year))
+
+  // Borrowed Sales
+  ipcMain.handle('borrowedSales:getAll',      (_, params) => borrowedSalesHandlers.getAll(params))
+  ipcMain.handle('borrowedSales:getById',     (_, id)     => borrowedSalesHandlers.getById(id))
+  ipcMain.handle('borrowedSales:create',      (_, data)   => borrowedSalesHandlers.create(data))
+  ipcMain.handle('borrowedSales:update',      (_, data)   => borrowedSalesHandlers.update(data))
+  ipcMain.handle('borrowedSales:delete',      (_, id)     => borrowedSalesHandlers.remove(id))
+  ipcMain.handle('borrowedSales:markSettled', (_, id)     => borrowedSalesHandlers.markSettled(id))
+  ipcMain.handle('borrowedSales:getSummary',  (_, params) => borrowedSalesHandlers.getSummary(params))
 
   // Settings
   ipcMain.handle('settings:get',    ()        => settingsHandlers.get())

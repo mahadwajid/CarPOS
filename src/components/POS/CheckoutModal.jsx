@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 export default function CheckoutModal({ isOpen, onClose }) {
   const { cart, total, subtotal, discountAmount, discountType, taxAmount, taxRate, customer, clearCart } = useCart();
   const { user } = useAuth();
-  
+
   const [paidAmount, setPaidAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -63,7 +63,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
       };
 
       const res = await window.electronAPI.sales.create(saleData);
-      
+
       if (res.success) {
         toast.success('Sale completed successfully!');
         setCompletedSale({ id: res.saleId, invoiceNumber: res.invoiceNumber });
@@ -80,10 +80,10 @@ export default function CheckoutModal({ isOpen, onClose }) {
 
   if (completedSale) {
     return (
-      <InvoiceModal 
-        isOpen={isOpen} 
-        onClose={onClose} 
-        saleId={completedSale.id} 
+      <InvoiceModal
+        isOpen={isOpen}
+        onClose={onClose}
+        saleId={completedSale.id}
       />
     );
   }
@@ -91,7 +91,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Checkout" size="lg">
       <div className="grid grid-cols-2 gap-6">
-        
+
         {/* Left Side: Summary & Payment Method */}
         <div className="space-y-6">
           <div className="bg-dark-800 p-4 rounded-xl border border-dark-700 shadow-inner">
@@ -107,20 +107,20 @@ export default function CheckoutModal({ isOpen, onClose }) {
           <div>
             <h3 className="text-sm font-semibold text-dark-300 uppercase tracking-wider mb-3">Payment Method</h3>
             <div className="grid grid-cols-2 gap-3">
-              <MethodButton 
-                active={paymentMethod === 'cash'} 
-                onClick={() => setPaymentMethod('cash')} 
-                icon={Banknote} label="Cash" 
+              <MethodButton
+                active={paymentMethod === 'cash'}
+                onClick={() => setPaymentMethod('cash')}
+                icon={Banknote} label="Cash"
               />
-              <MethodButton 
-                active={paymentMethod === 'card'} 
-                onClick={() => setPaymentMethod('card')} 
-                icon={CreditCard} label="Card" 
+              <MethodButton
+                active={paymentMethod === 'card'}
+                onClick={() => setPaymentMethod('card')}
+                icon={CreditCard} label="Card"
               />
-              <MethodButton 
-                active={paymentMethod === 'wallet'} 
-                onClick={() => setPaymentMethod('wallet')} 
-                icon={Wallet} label="Wallet" 
+              <MethodButton
+                active={paymentMethod === 'wallet'}
+                onClick={() => setPaymentMethod('wallet')}
+                icon={Wallet} label="Wallet"
               />
             </div>
           </div>
@@ -131,10 +131,10 @@ export default function CheckoutModal({ isOpen, onClose }) {
           <div>
             <label className="label flex items-center justify-between mb-2">
               Amount Received
-              <Calculator size={14} className="text-dark-400"/>
+              <Calculator size={14} className="text-dark-400" />
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl text-dark-400 font-bold">$</span>
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-2xl text-dark-400 font-bold">Rs</span>
               <input
                 type="number"
                 value={paidAmount}
@@ -143,7 +143,7 @@ export default function CheckoutModal({ isOpen, onClose }) {
                 className="w-full bg-dark-800 border-2 border-dark-600 rounded-xl pl-10 pr-4 py-4 text-3xl font-bold text-white focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/20 transition-all"
               />
             </div>
-            
+
             <div className="flex flex-wrap gap-2 mt-3">
               {quickAmounts.map(amt => (
                 <button
@@ -168,8 +168,8 @@ export default function CheckoutModal({ isOpen, onClose }) {
             </div>
           </div>
 
-          <Button 
-            className="w-full py-4 text-lg mt-auto" 
+          <Button
+            className="w-full py-4 text-lg mt-auto"
             variant="primary"
             disabled={!isValid || isProcessing}
             onClick={handleCheckout}
@@ -186,11 +186,10 @@ function MethodButton({ active, onClick, icon: Icon, label }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-        active 
-          ? 'bg-primary-600/10 border-primary-500 text-primary-400 shadow-lg shadow-primary-500/20' 
-          : 'bg-dark-800 border-dark-600 text-dark-300 hover:bg-dark-700 hover:border-dark-500'
-      }`}
+      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${active
+        ? 'bg-primary-600/10 border-primary-500 text-primary-400 shadow-lg shadow-primary-500/20'
+        : 'bg-dark-800 border-dark-600 text-dark-300 hover:bg-dark-700 hover:border-dark-500'
+        }`}
     >
       <Icon size={24} className="mb-2" />
       <span className="font-medium">{label}</span>

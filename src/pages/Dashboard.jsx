@@ -4,7 +4,7 @@ import StatCard from '../components/ui/StatCard';
 import RevenueCard from '../components/Reports/RevenueCard';
 import SalesChart from '../components/Reports/SalesChart';
 import LowStockAlert from '../components/Products/LowStockAlert';
-import { DollarSign, ShoppingBag, Users, Package, TrendingUp } from 'lucide-react';
+import { DollarSign, ShoppingBag, Users, Package, TrendingUp, Wallet, TrendingDown, Handshake } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 export default function Dashboard() {
@@ -40,10 +40,11 @@ export default function Dashboard() {
       <LowStockAlert />
 
       {/* Top Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <RevenueCard 
           title="Today's Revenue" 
           amount={data.todaySales.revenue} 
+          profit={data.todaySales.profit}
           subtitle={`${data.todaySales.count} sales today`}
           icon={DollarSign}
           color="primary"
@@ -51,14 +52,32 @@ export default function Dashboard() {
         <StatCard 
           title="Monthly Revenue"
           value={formatCurrency(data.monthSales.revenue)}
+          subValue={`Net Profit: ${formatCurrency(data.monthSales.profit || 0)}`}
           icon={TrendingUp}
           color="success"
+        />
+        <StatCard 
+          title="Today's Expenses"
+          value={formatCurrency(data.todayExpenses || 0)}
+          subValue={`Monthly: ${formatCurrency(data.monthExpenses || 0)}`}
+          icon={Wallet}
+          color="danger"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard 
+          title="Borrowed Sales Profit"
+          value={formatCurrency(data.todayBorrowedProfit || 0)}
+          subValue={`Monthly: ${formatCurrency(data.monthBorrowedProfit || 0)}`}
+          icon={Handshake}
+          color="warning"
         />
         <StatCard 
           title="Total Products"
           value={formatNumber(data.totalProducts)}
           icon={Package}
-          color="warning"
+          color="primary"
         />
         <StatCard 
           title="Registered Customers"
@@ -70,8 +89,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
         <div className="lg:col-span-2 card">
-          <h3 className="text-lg font-semibold text-white mb-4">Revenue (Last 7 Days)</h3>
-          <SalesChart data={data.last7Days} />
+          <h3 className="text-lg font-semibold text-white mb-4">Revenue & Profit (Last 7 Days)</h3>
+          <SalesChart data={data.last7Days} showExpenses />
         </div>
 
         {/* Top Products */}

@@ -6,14 +6,55 @@ function getDashboard() {
   const thisMonth = new Date().toISOString().slice(0, 7)
 
   const todaySales = db.prepare(`
-    SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as revenue
+    SELECT 
+      COUNT(*) as count, 
+      COALESCE(SUM(total), 0) as revenue,
+      COALESCE(SUM(total - tax_amount), 0) - (
+        SELECT COALESCE(SUM(si.quantity * si.cost), 0)
+        FROM sale_items si JOIN sales s ON si.sale_id = s.id
+        WHERE date(s.created_at) = date(?)
+      ) as gross_profit
     FROM sales WHERE date(created_at) = date(?)
-  `).get(today)
+  `).get(today, today)
 
   const monthSales = db.prepare(`
-    SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as revenue
+    SELECT 
+      COUNT(*) as count, 
+      COALESCE(SUM(total), 0) as revenue,
+      COALESCE(SUM(total - tax_amount), 0) - (
+        SELECT COALESCE(SUM(si.quantity * si.cost), 0)
+        FROM sale_items si JOIN sales s ON si.sale_id = s.id
+        WHERE strftime('%Y-%m', s.created_at) = ?
+      ) as gross_profit
     FROM sales WHERE strftime('%Y-%m', created_at) = ?
+  `).get(thisMonth, thisMonth)
+
+  // Expense totals for today and month
+  const todayExpenses = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE expense_date = ?
+  `).get(today)
+
+  const monthExpenses = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE strftime('%Y-%m', expense_date) = ?
   `).get(thisMonth)
+
+  // Borrowed sales profit for today and month
+  const todayBorrowed = db.prepare(`
+    SELECT COALESCE(SUM(profit), 0) as total FROM borrowed_sales WHERE sale_date = ?
+  `).get(today)
+
+  const monthBorrowed = db.prepare(`
+    SELECT COALESCE(SUM(profit), 0) as total FROM borrowed_sales WHERE strftime('%Y-%m', sale_date) = ?
+  `).get(thisMonth)
+
+  // Net profit = gross profit - expenses + borrowed profit
+  todaySales.expenses = todayExpenses.total
+  todaySales.borrowed_profit = todayBorrowed.total
+  todaySales.profit = todaySales.gross_profit - todayExpenses.total + todayBorrowed.total
+
+  monthSales.expenses = monthExpenses.total
+  monthSales.borrowed_profit = monthBorrowed.total
+  monthSales.profit = monthSales.gross_profit - monthExpenses.total + monthBorrowed.total
 
   const totalProducts = db.prepare(`SELECT COUNT(*) as count FROM products WHERE is_active = 1`).get()
   const lowStockCount = db.prepare(`SELECT COUNT(*) as count FROM products WHERE stock <= low_stock_threshold AND is_active = 1`).get()
@@ -35,13 +76,33 @@ function getDashboard() {
     ORDER BY total_sold DESC LIMIT 5
   `).all()
 
+  // Last 7 days with expenses included
   const last7Days = db.prepare(`
-    SELECT date(created_at) as date,
-      COUNT(*) as count,
-      COALESCE(SUM(total), 0) as revenue
-    FROM sales
-    WHERE date(created_at) >= date('now', '-6 days')
-    GROUP BY date(created_at)
+    WITH DailyCosts AS (
+      SELECT date(s.created_at) as date, SUM(si.quantity * si.cost) as cost
+      FROM sales s
+      LEFT JOIN sale_items si ON s.id = si.sale_id
+      WHERE date(s.created_at) >= date('now', '-6 days')
+      GROUP BY date(s.created_at)
+    ),
+    DailyExpenses AS (
+      SELECT expense_date as date, SUM(amount) as expenses
+      FROM expenses
+      WHERE expense_date >= date('now', '-6 days')
+      GROUP BY expense_date
+    )
+    SELECT 
+      date(s.created_at) as date,
+      COUNT(s.id) as count,
+      COALESCE(SUM(s.total), 0) as revenue,
+      COALESCE(SUM(s.total - s.tax_amount), 0) - COALESCE(c.cost, 0) as gross_profit,
+      COALESCE(ex.expenses, 0) as expenses,
+      COALESCE(SUM(s.total - s.tax_amount), 0) - COALESCE(c.cost, 0) - COALESCE(ex.expenses, 0) as profit
+    FROM sales s
+    LEFT JOIN DailyCosts c ON date(s.created_at) = c.date
+    LEFT JOIN DailyExpenses ex ON date(s.created_at) = ex.date
+    WHERE date(s.created_at) >= date('now', '-6 days')
+    GROUP BY date(s.created_at)
     ORDER BY date
   `).all()
 
@@ -50,6 +111,10 @@ function getDashboard() {
     data: {
       todaySales,
       monthSales,
+      todayExpenses: todayExpenses.total,
+      monthExpenses: monthExpenses.total,
+      todayBorrowedProfit: todayBorrowed.total,
+      monthBorrowedProfit: monthBorrowed.total,
       totalProducts: totalProducts.count,
       lowStockCount: lowStockCount.count,
       totalCustomers: totalCustomers.count,
@@ -63,19 +128,37 @@ function getDashboard() {
 function getSalesByDate({ startDate, endDate } = {}) {
   const db = getDb()
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  const end   = endDate   || new Date().toISOString().split('T')[0]
+  const end = endDate || new Date().toISOString().split('T')[0]
 
   const rows = db.prepare(`
-    SELECT date(created_at) as date,
-      COUNT(*) as count,
-      COALESCE(SUM(total), 0) as revenue,
-      COALESCE(SUM(tax_amount), 0) as tax,
-      COALESCE(SUM(discount), 0) as discount
-    FROM sales
-    WHERE date(created_at) BETWEEN date(?) AND date(?)
-    GROUP BY date(created_at)
+    WITH DailyCosts AS (
+      SELECT date(s.created_at) as date, SUM(si.quantity * si.cost) as cost
+      FROM sales s
+      LEFT JOIN sale_items si ON s.id = si.sale_id
+      WHERE date(s.created_at) BETWEEN date(?) AND date(?)
+      GROUP BY date(s.created_at)
+    ),
+    DailyExpenses AS (
+      SELECT expense_date as date, SUM(amount) as expenses
+      FROM expenses
+      WHERE expense_date BETWEEN date(?) AND date(?)
+      GROUP BY expense_date
+    )
+    SELECT date(s.created_at) as date,
+      COUNT(s.id) as count,
+      COALESCE(SUM(s.total), 0) as revenue,
+      COALESCE(SUM(s.tax_amount), 0) as tax,
+      COALESCE(SUM(s.discount), 0) as discount,
+      COALESCE(SUM(s.total - s.tax_amount), 0) - COALESCE(c.cost, 0) as gross_profit,
+      COALESCE(ex.expenses, 0) as expenses,
+      COALESCE(SUM(s.total - s.tax_amount), 0) - COALESCE(c.cost, 0) - COALESCE(ex.expenses, 0) as profit
+    FROM sales s
+    LEFT JOIN DailyCosts c ON date(s.created_at) = c.date
+    LEFT JOIN DailyExpenses ex ON date(s.created_at) = ex.date
+    WHERE date(s.created_at) BETWEEN date(?) AND date(?)
+    GROUP BY date(s.created_at)
     ORDER BY date
-  `).all(start, end)
+  `).all(start, end, start, end, start, end)
 
   return { success: true, data: rows }
 }
@@ -83,7 +166,7 @@ function getSalesByDate({ startDate, endDate } = {}) {
 function getTopProducts({ startDate, endDate, limit = 10 } = {}) {
   const db = getDb()
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  const end   = endDate   || new Date().toISOString().split('T')[0]
+  const end = endDate || new Date().toISOString().split('T')[0]
 
   const rows = db.prepare(`
     SELECT
@@ -113,24 +196,59 @@ function getRevenue({ period = 'monthly', year } = {}) {
   let rows
   if (period === 'monthly') {
     rows = db.prepare(`
+      WITH PeriodCosts AS (
+        SELECT strftime('%Y-%m', s.created_at) as period, SUM(si.quantity * si.cost) as cost
+        FROM sales s
+        LEFT JOIN sale_items si ON s.id = si.sale_id
+        WHERE strftime('%Y', s.created_at) = ?
+        GROUP BY strftime('%Y-%m', s.created_at)
+      ),
+      PeriodExpenses AS (
+        SELECT strftime('%Y-%m', expense_date) as period, SUM(amount) as expenses
+        FROM expenses
+        WHERE strftime('%Y', expense_date) = ?
+        GROUP BY strftime('%Y-%m', expense_date)
+      )
       SELECT
-        strftime('%Y-%m', created_at) as period,
-        COUNT(*) as count,
-        COALESCE(SUM(total), 0) as revenue,
-        COALESCE(SUM(tax_amount), 0) as tax
-      FROM sales
-      WHERE strftime('%Y', created_at) = ?
-      GROUP BY period
+        strftime('%Y-%m', s.created_at) as period,
+        COUNT(s.id) as count,
+        COALESCE(SUM(s.total), 0) as revenue,
+        COALESCE(SUM(s.tax_amount), 0) as tax,
+        COALESCE(SUM(s.total - s.tax_amount), 0) - COALESCE(c.cost, 0) as gross_profit,
+        COALESCE(ex.expenses, 0) as expenses,
+        COALESCE(SUM(s.total - s.tax_amount), 0) - COALESCE(c.cost, 0) - COALESCE(ex.expenses, 0) as profit
+      FROM sales s
+      LEFT JOIN PeriodCosts c ON strftime('%Y-%m', s.created_at) = c.period
+      LEFT JOIN PeriodExpenses ex ON strftime('%Y-%m', s.created_at) = ex.period
+      WHERE strftime('%Y', s.created_at) = ?
+      GROUP BY strftime('%Y-%m', s.created_at)
       ORDER BY period
-    `).all(String(y))
+    `).all(String(y), String(y), String(y))
   } else {
     rows = db.prepare(`
+      WITH PeriodCosts AS (
+        SELECT strftime('%Y', s.created_at) as period, SUM(si.quantity * si.cost) as cost
+        FROM sales s
+        LEFT JOIN sale_items si ON s.id = si.sale_id
+        GROUP BY strftime('%Y', s.created_at)
+      ),
+      PeriodExpenses AS (
+        SELECT strftime('%Y', expense_date) as period, SUM(amount) as expenses
+        FROM expenses
+        GROUP BY strftime('%Y', expense_date)
+      )
       SELECT
-        strftime('%Y', created_at) as period,
-        COUNT(*) as count,
-        COALESCE(SUM(total), 0) as revenue
-      FROM sales
-      GROUP BY period ORDER BY period
+        strftime('%Y', s.created_at) as period,
+        COUNT(s.id) as count,
+        COALESCE(SUM(s.total), 0) as revenue,
+        COALESCE(SUM(s.total - s.tax_amount), 0) - COALESCE(c.cost, 0) as gross_profit,
+        COALESCE(ex.expenses, 0) as expenses,
+        COALESCE(SUM(s.total - s.tax_amount), 0) - COALESCE(c.cost, 0) - COALESCE(ex.expenses, 0) as profit
+      FROM sales s
+      LEFT JOIN PeriodCosts c ON strftime('%Y', s.created_at) = c.period
+      LEFT JOIN PeriodExpenses ex ON strftime('%Y', s.created_at) = ex.period
+      GROUP BY strftime('%Y', s.created_at)
+      ORDER BY period
     `).all()
   }
 

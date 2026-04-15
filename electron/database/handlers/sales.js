@@ -207,4 +207,114 @@ function getMonthly(month) {
   return { success: true, data: rows }
 }
 
-module.exports = { create, getAll, getById, getSaleItems, remove, getDaily, getMonthly }
+/**
+ * processExchange — Admin-only.
+ * returnItems : [{ product_id, product_name, price, cost, quantity, subtotal }]
+ * outgoingItems: [{ product_id, product_name, price, cost, quantity, subtotal }]
+ * settlement   : { type: 'charge'|'refund'|'even', amount, payment_method }
+ * cashier_id, customer_id, notes
+ */
+function processExchange({ returnItems = [], outgoingItems = [], settlement, customer_id, cashier_id, notes }) {
+  const db = getDb()
+
+  if (!returnItems.length && !outgoingItems.length) {
+    return { success: false, message: 'Exchange must have at least one return or outgoing item.' }
+  }
+
+  // Generate unique exchange reference number
+  const settings = db.prepare(`SELECT value FROM settings WHERE key = 'invoice_prefix'`).get()
+  const prefix = settings?.value || 'INV'
+  const now = new Date()
+  const datePart = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
+  const last = db.prepare(`SELECT invoice_number FROM sales ORDER BY id DESC LIMIT 1`).get()
+  let seq = 1
+  if (last) {
+    const parts = last.invoice_number.split('-')
+    const lastNum = parseInt(parts[parts.length - 1]) || 0
+    seq = lastNum + 1
+  }
+  const exchangeRef = `EXC-${datePart}-${String(seq).padStart(4, '0')}`
+
+  const returnSubtotal  = returnItems.reduce((s, i) => s + i.subtotal, 0)
+  const outgoingSubtotal = outgoingItems.reduce((s, i) => s + i.subtotal, 0)
+  const netTotal = outgoingSubtotal - returnSubtotal  // positive = customer pays, negative = refund
+
+  const runExchange = db.transaction(() => {
+    //  --- Validate outgoing stock ---
+    for (const item of outgoingItems) {
+      const product = db.prepare(`SELECT stock FROM products WHERE id = ?`).get(item.product_id)
+      if (!product) throw new Error(`Product ID ${item.product_id} not found`)
+      if (product.stock < item.quantity) throw new Error(`Insufficient stock for "${item.product_name}"`)
+    }
+
+    // --- Insert a sales record (type = exchange) ---
+    const saleResult = db.prepare(`
+      INSERT INTO sales (
+        invoice_number, customer_id, subtotal, discount, discount_type,
+        tax_rate, tax_amount, total, paid_amount, change_amount,
+        payment_method, notes, cashier_id, status
+      ) VALUES (?, ?, ?, 0, 'fixed', 0, 0, ?, ?, 0, ?, ?, ?, 'exchange')
+    `).run(
+      exchangeRef,
+      customer_id || null,
+      outgoingSubtotal,
+      netTotal,
+      settlement?.amount || 0,
+      settlement?.payment_method || 'cash',
+      notes || null,
+      cashier_id || null
+    )
+    const saleId = saleResult.lastInsertRowid
+
+    // --- Process RETURN items (stock goes back up) ---
+    for (const item of returnItems) {
+      const product = db.prepare(`SELECT stock FROM products WHERE id = ?`).get(item.product_id)
+      const beforeQty = product?.stock || 0
+      const afterQty  = beforeQty + item.quantity
+
+      db.prepare(`UPDATE products SET stock = stock + ?, updated_at = datetime('now') WHERE id = ?`)
+        .run(item.quantity, item.product_id)
+
+      db.prepare(`
+        INSERT INTO sale_items (sale_id, product_id, product_name, price, cost, quantity, discount, subtotal)
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+      `).run(saleId, item.product_id, item.product_name, item.price, item.cost || 0, -item.quantity, -item.subtotal)
+
+      db.prepare(`
+        INSERT INTO inventory_logs (product_id, type, quantity, before_qty, after_qty, reference, notes)
+        VALUES (?, 'exchange_return', ?, ?, ?, ?, 'Returned via Exchange')
+      `).run(item.product_id, item.quantity, beforeQty, afterQty, exchangeRef)
+    }
+
+    // --- Process OUTGOING items (stock goes down) ---
+    for (const item of outgoingItems) {
+      const product = db.prepare(`SELECT stock FROM products WHERE id = ?`).get(item.product_id)
+      const beforeQty = product.stock
+      const afterQty  = beforeQty - item.quantity
+
+      db.prepare(`UPDATE products SET stock = stock - ?, updated_at = datetime('now') WHERE id = ?`)
+        .run(item.quantity, item.product_id)
+
+      db.prepare(`
+        INSERT INTO sale_items (sale_id, product_id, product_name, price, cost, quantity, discount, subtotal)
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+      `).run(saleId, item.product_id, item.product_name, item.price, item.cost || 0, item.quantity, item.subtotal)
+
+      db.prepare(`
+        INSERT INTO inventory_logs (product_id, type, quantity, before_qty, after_qty, reference, notes)
+        VALUES (?, 'exchange_out', ?, ?, ?, ?, 'Dispatched via Exchange')
+      `).run(item.product_id, item.quantity, beforeQty, afterQty, exchangeRef)
+    }
+
+    return { saleId, exchangeRef, netTotal }
+  })
+
+  try {
+    const result = runExchange()
+    return { success: true, ...result }
+  } catch (err) {
+    return { success: false, message: err.message }
+  }
+}
+
+module.exports = { create, getAll, getById, getSaleItems, remove, getDaily, getMonthly, processExchange }

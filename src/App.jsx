@@ -14,6 +14,9 @@ import Sales from './pages/Sales'
 import Reports from './pages/Reports'
 import Customers from './pages/Customers'
 import Settings from './pages/Settings'
+import Exchange from './pages/Exchange'
+import Expenses from './pages/Expenses'
+import BorrowedSales from './pages/BorrowedSales'
 
 function PrivateRoute({ children, adminOnly = false }) {
   const { user } = useAuth()
@@ -38,6 +41,9 @@ function AppRoutes() {
           <Route path="/reports"    element={<PrivateRoute adminOnly><Reports /></PrivateRoute>} />
           <Route path="/customers"  element={<Customers />} />
           <Route path="/settings"   element={<PrivateRoute adminOnly><Settings /></PrivateRoute>} />
+          <Route path="/exchange"   element={<PrivateRoute adminOnly><Exchange /></PrivateRoute>} />
+          <Route path="/expenses"   element={<PrivateRoute adminOnly><Expenses /></PrivateRoute>} />
+          <Route path="/borrowed-sales" element={<PrivateRoute adminOnly><BorrowedSales /></PrivateRoute>} />
           <Route path="*"           element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

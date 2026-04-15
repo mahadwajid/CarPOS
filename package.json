@@ -11,7 +11,12 @@
     "build:electron": "npm run build && electron-builder",
     "preview": "vite preview"
   },
-  "keywords": ["pos", "electron", "offline", "retail"],
+  "keywords": [
+    "pos",
+    "electron",
+    "offline",
+    "retail"
+  ],
   "author": "CarPOS",
   "license": "MIT",
   "dependencies": {
@@ -41,17 +46,56 @@
   "build": {
     "appId": "com.carpos.app",
     "productName": "CarPOS",
+    "copyright": "Copyright © 2026 CarPOS",
     "directories": {
-      "output": "dist-electron"
+      "output": "dist-electron",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
       "electron/**/*",
       "node_modules/**/*"
     ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
     "win": {
-      "target": "nsis",
-      "icon": "public/icon.ico"
-    }
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon",
+      "publish": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CarPOS",
+      "perMachine": true,
+      "allowElevation": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": [
+        "en_US"
+      ]
+    },
+    "forceCodeSigning": false,
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/bcryptjs/**/*"
+    ]
   }
 }

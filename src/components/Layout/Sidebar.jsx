@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, ShoppingCart, Package, 
-  Archive, FileText, BarChart3, Users, Settings
+  Archive, FileText, BarChart3, Users, Settings, ArrowLeftRight, Wallet, Handshake
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -19,6 +19,9 @@ export default function Sidebar() {
   ];
 
   const adminItems = [
+    { to: '/exchange', label: 'Exchange / Return', icon: ArrowLeftRight },
+    { to: '/expenses', label: 'Expenses', icon: Wallet },
+    { to: '/borrowed-sales', label: 'Borrowed Sales', icon: Handshake },
     { to: '/reports', label: 'Reports', icon: BarChart3 },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];

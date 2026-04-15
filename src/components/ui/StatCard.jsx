@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function StatCard({ title, value, icon: Icon, trend, trendValue, color = 'primary' }) {
+export default function StatCard({ title, value, subValue, icon: Icon, trend, trendValue, color = 'primary' }) {
   const colorMap = {
     primary: 'bg-primary-500/20 text-primary-400',
     success: 'bg-success-500/20 text-success-400',
@@ -16,6 +16,9 @@ export default function StatCard({ title, value, icon: Icon, trend, trendValue, 
       <div>
         <p className="text-sm font-medium text-dark-400">{title}</p>
         <p className="text-2xl font-bold text-white mt-1">{value}</p>
+        {subValue && (
+          <p className="text-sm font-medium text-success-400 mt-1">{subValue}</p>
+        )}
         {trend && (
           <p className={`text-xs mt-1 font-medium ${trend === 'up' ? 'text-success-400' : 'text-danger-400'}`}>
             {trend === 'up' ? '↑' : '↓'} {trendValue}
